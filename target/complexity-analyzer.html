@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ComplexityAI — Java Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:       #0c0e12;
+    --surface:  #13161d;
+    --card:     #181c26;
+    --border:   #1f2535;
+    --border2:  #2a3147;
+    --accent:   #3bffc4;
+    --accent-d: #00c896;
+    --purple:   #9b7fff;
+    --yellow:   #ffd166;
+    --red:      #ff5f6d;
+    --orange:   #ffaa5a;
+    --text:     #dde4f0;
+    --muted:    #5a6480;
+    --muted2:   #8490a8;
+    --code-bg:  #0a0c10;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::after {
+    content: '';
+    position: fixed; inset: 0; pointer-events: none; z-index: 999;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.035) 2px, rgba(0,0,0,0.035) 4px);
+  }
+  .blob {
+    position: fixed; border-radius: 50%;
+    filter: blur(130px); pointer-events: none; z-index: 0; opacity: 0.09;
+  }
+  .blob1 { width: 560px; height: 560px; background: var(--accent); top: -180px; left: -180px; }
+  .blob2 { width: 420px; height: 420px; background: var(--purple); bottom: -120px; right: -120px; }
+
+  .shell {
+    position: relative; z-index: 1;
+    max-width: 1180px; margin: 0 auto;
+    padding: 26px 20px 40px;
+    display: flex; flex-direction: column; gap: 24px;
+  }
+
+  /* ── Header ── */
+  .header {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .hdr-left { display: flex; align-items: center; gap: 14px; }
+  .hdr-icon {
+    width: 50px; height: 50px; border-radius: 12px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--accent-d), var(--purple));
+    display: flex; align-items: center; justify-content: center; font-size: 22px;
+    box-shadow: 0 0 28px rgba(59,255,196,0.22), 0 0 60px rgba(59,255,196,0.06);
+  }
+  .hdr-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 36px; letter-spacing: 2px; line-height: 1;
+  }
+  .hdr-title span { color: var(--accent); }
+  .hdr-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: var(--muted2); letter-spacing: 2px;
+    text-transform: uppercase; margin-top: 3px;
+  }
+  .hdr-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .pill {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    padding: 5px 11px; border-radius: 4px;
+    border: 1px solid var(--border2); color: var(--muted2);
+    background: var(--surface); letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  .pill.green  { border-color: rgba(59,255,196,0.35); color: var(--accent);  background: rgba(59,255,196,0.06); }
+  .pill.green::before  { content: '◆ '; font-size: 7px; }
+  .pill.orange { border-color: rgba(255,170,90,0.35);  color: var(--orange); background: rgba(255,170,90,0.06); }
+  .pill.orange::before { content: '◆ '; font-size: 7px; }
+  .pill.dim    { opacity: 0.5; }
+
+  /* ── Backend status bar ── */
+  .status-bar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; border-radius: 8px;
+    border: 1px solid var(--border2);
+    background: var(--surface); font-size: 12px;
+    font-family: 'JetBrains Mono', monospace; flex-wrap: wrap; gap: 10px;
+  }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .status-dot.green  { background: var(--accent);  box-shadow: 0 0 8px var(--accent); }
+  .status-dot.red    { background: var(--red);     box-shadow: 0 0 8px var(--red); }
+  .status-dot.yellow { background: var(--yellow);  box-shadow: 0 0 8px var(--yellow); animation: pulse 1.2s ease infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .status-text { color: var(--muted2); flex: 1; }
+  .status-text strong { color: var(--text); }
+  .status-mode {
+    font-size: 10px; letter-spacing: 1px; padding: 3px 8px;
+    border-radius: 3px; background: var(--card); color: var(--muted2);
+    border: 1px solid var(--border);
+  }
+
+  /* ── Grid ── */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+
+  /* ── Panel ── */
+  .panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+  }
+  .panel-bar {
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    background: var(--card); display: flex; align-items: center;
+    justify-content: space-between; gap: 10px;
+  }
+  .panel-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 2px; text-transform: uppercase; color: var(--muted2);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .bar { display: inline-block; width: 3px; height: 13px; border-radius: 2px; }
+  .bar-green  { background: var(--accent); }
+  .bar-purple { background: var(--purple); }
+
+  /* ── Editor ── */
+  .editor-wrap { display: flex; min-height: 320px; }
+  .line-nums {
+    min-width: 48px; padding: 16px 10px 16px 0; text-align: right;
+    user-select: none; font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; line-height: 1.75; color: var(--muted);
+    background: var(--code-bg); border-right: 1px solid var(--border); overflow: hidden;
+  }
+  .code-ta {
+    flex: 1; min-height: 320px; padding: 16px;
+    background: var(--code-bg); color: #ced6e0;
+    border: none; outline: none; resize: none;
+    font-family: 'JetBrains Mono', monospace; font-size: 12.5px; line-height: 1.75;
+    tab-size: 4; white-space: pre; overflow: auto; caret-color: var(--accent);
+  }
+  .code-ta::placeholder { color: var(--muted); font-style: italic; }
+
+  /* ── Actions bar ── */
+  .actions {
+    padding: 11px 14px; border-top: 1px solid var(--border);
+    background: var(--card); display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  }
+  .sample-sel {
+    flex: 1; min-width: 150px;
+    background: var(--surface); border: 1px solid var(--border2);
+    color: var(--text); padding: 8px 11px; border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; outline: none; cursor: pointer;
+  }
+  .sample-sel:focus { border-color: var(--accent); }
+  option { background: var(--surface); }
+
+  .btn {
+    font-family: 'DM Sans', sans-serif; font-weight: 700; font-size: 13px;
+    padding: 8px 17px; border-radius: 6px; border: none; cursor: pointer;
+    display: flex; align-items: center; gap: 6px; transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn-ghost { background: transparent; color: var(--muted2); border: 1px solid var(--border2); }
+  .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+  .btn-run {
+    background: var(--accent); color: #0a0c10;
+    box-shadow: 0 0 16px rgba(59,255,196,0.28);
+  }
+  .btn-run:hover:not(:disabled) { box-shadow: 0 0 28px rgba(59,255,196,0.5); transform: translateY(-1px); }
+  .btn-run:active:not(:disabled) { transform: translateY(0); }
+  .btn-run:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  /* ── Results ── */
+  .results-panel { min-height: 430px; }
+
+  .state-box {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; min-height: 380px; gap: 12px;
+    text-align: center; padding: 24px;
+  }
+  .state-icon { font-size: 44px; opacity: 0.3; }
+  .state-title { font-size: 14px; font-weight: 600; color: var(--muted2); }
+  .state-sub {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--muted); max-width: 260px; line-height: 1.6;
+  }
+
+  .spinner-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 380px; gap: 18px; }
+  .spinner {
+    width: 38px; height: 38px; border: 2px solid var(--border2);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.75s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted2); letter-spacing: 1px; }
+
+  /* ── Result content ── */
+  .r-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+  .cx-row { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+  .cx-card {
+    border-radius: 8px; padding: 13px 15px;
+    border: 1px solid; position: relative; overflow: hidden;
+  }
+  .cx-card::after {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  }
+  .cx-time  { border-color: rgba(59,255,196,0.2);  background: rgba(59,255,196,0.04); }
+  .cx-time::after  { background: var(--accent); }
+  .cx-space { border-color: rgba(155,127,255,0.2); background: rgba(155,127,255,0.04); }
+  .cx-space::after { background: var(--purple); }
+
+  .cx-lbl {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px;
+  }
+  .cx-time .cx-lbl  { color: var(--accent); }
+  .cx-space .cx-lbl { color: var(--purple); }
+  .cx-val {
+    font-family: 'JetBrains Mono', monospace; font-size: 23px; font-weight: 700;
+    line-height: 1; margin-bottom: 5px;
+  }
+  .cx-time .cx-val  { color: var(--accent); }
+  .cx-space .cx-val { color: var(--purple); }
+  .cx-desc { font-size: 11px; color: var(--muted2); line-height: 1.4; }
+
+  /* Confidence bar */
+  .conf-row { display: flex; align-items: center; gap: 10px; }
+  .conf-label { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; }
+  .conf-bar-bg { flex: 1; height: 4px; background: var(--border2); border-radius: 2px; overflow: hidden; }
+  .conf-bar-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--accent-d), var(--accent)); transition: width 0.6s ease; }
+  .conf-val { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--accent); white-space: nowrap; }
+
+  /* Source badge */
+  .source-row { display: flex; align-items: center; gap: 8px; }
+  .source-badge {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    padding: 3px 8px; border-radius: 3px; letter-spacing: 1px;
+  }
+  .source-static { background: rgba(59,255,196,0.1); color: var(--accent); border: 1px solid rgba(59,255,196,0.2); }
+  .source-ai     { background: rgba(155,127,255,0.1); color: var(--purple); border: 1px solid rgba(155,127,255,0.2); }
+  .source-label  { font-size: 11px; color: var(--muted); }
+
+  /* Steps */
+  .sec-hdr {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    letter-spacing: 2px; text-transform: uppercase; color: var(--muted);
+    display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+  }
+  .sec-hdr::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .steps { display: flex; flex-direction: column; gap: 7px; }
+  .step {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 9px 12px; border-radius: 7px;
+    background: var(--card); border: 1px solid var(--border);
+    animation: fadeIn 0.25s ease both;
+  }
+  .step:nth-child(1){animation-delay:.04s} .step:nth-child(2){animation-delay:.08s}
+  .step:nth-child(3){animation-delay:.12s} .step:nth-child(4){animation-delay:.16s}
+  .step:nth-child(5){animation-delay:.20s} .step:nth-child(6){animation-delay:.24s}
+  .step:nth-child(7){animation-delay:.28s}
+  @keyframes fadeIn { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:translateY(0)} }
+  .step-n {
+    min-width: 20px; height: 20px; border-radius: 5px; flex-shrink: 0; margin-top: 1px;
+    background: linear-gradient(135deg, var(--accent-d), var(--purple));
+    color: #0a0c10; font-size: 10px; font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step-txt { font-size: 12.5px; line-height: 1.55; color: var(--muted2); }
+  .step-txt code {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    background: var(--code-bg); padding: 1px 5px; border-radius: 3px;
+    color: var(--accent); border: 1px solid var(--border2);
+  }
+
+  .verdict {
+    padding: 11px 14px; border-radius: 8px;
+    border: 1px solid rgba(255,209,102,0.2); background: rgba(255,209,102,0.04);
+    font-size: 12.5px; color: var(--muted2); line-height: 1.6;
+  }
+  .verdict strong { color: var(--yellow); }
+
+  .warn {
+    padding: 10px 13px; border-radius: 8px;
+    border: 1px solid rgba(255,95,109,0.22); background: rgba(255,95,109,0.04);
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #ff8a94; line-height: 1.6;
+  }
+
+  /* ── Footer ── */
+  .footer {
+    border-top: 1px solid var(--border); padding-top: 16px;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 12px;
+  }
+  .footer-brand { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); }
+  .footer-brand span { color: var(--red); }
+  .footer-chips { display: flex; gap: 7px; flex-wrap: wrap; }
+  .fchip {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px; padding: 3px 9px;
+    border-radius: 3px; border: 1px solid var(--border); color: var(--muted);
+    background: var(--surface); letter-spacing: 0.5px;
+  }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: var(--code-bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="blob blob1"></div>
+<div class="blob blob2"></div>
+
+<div class="shell">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="hdr-left">
+      <div class="hdr-icon">⚡</div>
+      <div>
+        <div class="hdr-title">Complexity<span>AI</span></div>
+        <div class="hdr-sub">Java Static Analysis Engine</div>
+      </div>
+    </div>
+    <div class="hdr-right">
+      <span class="pill">Big-O Analysis</span>
+      <span class="pill">Space &amp; Time</span>
+      <span class="pill green" id="modePill">Static + AI</span>
+    </div>
+  </header>
+
+  <!-- Backend Status Bar -->
+  <div class="status-bar">
+    <div class="status-dot yellow" id="statusDot"></div>
+    <div class="status-text" id="statusText">
+      <strong>Checking backend…</strong> — connecting to Java analyzer on <code>localhost:8080</code>
+    </div>
+    <span class="status-mode" id="statusMode">INITIALIZING</span>
+  </div>
+
+  <!-- Main Grid -->
+  <div class="grid">
+
+    <!-- Editor Panel -->
+    <div>
+      <div class="panel">
+        <div class="panel-bar">
+          <div class="panel-label"><span class="bar bar-green"></span>Java Source Editor</div>
+          <span id="lineCount" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted)">1 line</span>
+        </div>
+        <div class="editor-wrap">
+          <div class="line-nums" id="lineNums">1</div>
+          <textarea class="code-ta" id="codeInput" spellcheck="false" placeholder="// Paste your Java code here...
+// Example:
+for (int i = 0; i < n; i++) {
+    for (int j = 0; j < n; j++) {
+        System.out.println(i + j);
+    }
+}"></textarea>
+        </div>
+        <div class="actions">
+          <select class="sample-sel" id="sampleSel">
+            <option value="">── Load a sample ──</option>
+            <option value="nested">Nested loops — O(n²)</option>
+            <option value="bsearch">Binary search — O(log n)</option>
+            <option value="mergesort">Merge sort — O(n log n)</option>
+            <option value="fib">Fibonacci recursion — O(2ⁿ)</option>
+            <option value="linear">Linear scan — O(n)</option>
+            <option value="const">Constant — O(1)</option>
+            <option value="cubic">Triple nested — O(n³)</option>
+          </select>
+          <button class="btn btn-ghost" id="clearBtn">✕ Clear</button>
+          <button class="btn btn-run" id="analyzeBtn">
+            <span id="btnIcon">▶</span>
+            <span id="btnTxt">Analyze</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results Panel -->
+    <div>
+      <div class="panel results-panel">
+        <div class="panel-bar">
+          <div class="panel-label"><span class="bar bar-purple"></span>Analysis Report</div>
+          <span id="resBadge" class="pill" style="display:none"></span>
+        </div>
+        <div id="resultsArea">
+          <div class="state-box">
+            <div class="state-icon">🔬</div>
+            <div class="state-title">Nothing analyzed yet</div>
+            <div class="state-sub">Load a sample or paste Java code, then click Analyze.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-brand">Created by themugglecoder with <span>♥</span></div>
+    <div class="footer-chips">
+      <span class="fchip">JavaParser AST</span>
+      <span class="fchip">Loop Detection</span>
+      <span class="fchip">Recursion Analysis</span>
+      <span class="fchip">AI Fallback</span>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+// ── Config ────────────────────────────────────────────────
+const BACKEND_URL = 'http://localhost:8080/api/analyze';
+const HEALTH_URL  = 'http://localhost:8080/api/health';
+
+let backendAvailable = false;
+
+// ── Samples ───────────────────────────────────────────────
+const SAMPLES = {
+  nested:
+`// Nested loops — O(n²)
+void printPairs(int n) {
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            System.out.println(i + ", " + j);
+        }
+    }
+}`,
+  bsearch:
+`// Binary search — O(log n)
+int binarySearch(int[] arr, int target) {
+    int left = 0, right = arr.length - 1;
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+        if (arr[mid] == target) return mid;
+        else if (arr[mid] < target) left = mid + 1;
+        else right = mid - 1;
+    }
+    return -1;
+}`,
+  mergesort:
+`// Merge sort — O(n log n)
+void mergeSort(int[] arr, int left, int right) {
+    if (left < right) {
+        int mid = (left + right) / 2;
+        mergeSort(arr, left, mid);
+        mergeSort(arr, mid + 1, right);
+        merge(arr, left, mid, right);
+    }
+}
+
+void merge(int[] arr, int l, int m, int r) {
+    int n1 = m - l + 1, n2 = r - m;
+    int[] L = new int[n1], R = new int[n2];
+    for (int i = 0; i < n1; i++) L[i] = arr[l + i];
+    for (int j = 0; j < n2; j++) R[j] = arr[m + 1 + j];
+    int i = 0, j = 0, k = l;
+    while (i < n1 && j < n2) {
+        arr[k++] = (L[i] <= R[j]) ? L[i++] : R[j++];
+    }
+    while (i < n1) arr[k++] = L[i++];
+    while (j < n2) arr[k++] = R[j++];
+}`,
+  fib:
+`// Naive Fibonacci recursion — O(2ⁿ)
+int fibonacci(int n) {
+    if (n <= 1) return n;
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}`,
+  linear:
+`// Linear scan — O(n)
+int findMax(int[] arr) {
+    int max = arr[0];
+    for (int i = 1; i < arr.length; i++) {
+        if (arr[i] > max) max = arr[i];
+    }
+    return max;
+}`,
+  const:
+`// Constant time — O(1)
+int getFirst(int[] arr) {
+    return arr[0];
+}
+
+boolean isEmpty(int[] arr) {
+    return arr.length == 0;
+}`,
+  cubic:
+`// Triple nested — O(n³)
+int tripleSum(int n) {
+    int count = 0;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            for (int k = 0; k < n; k++) {
+                count++;
+            }
+        }
+    }
+    return count;
+}`
+};
+
+// ── Editor line numbers ───────────────────────────────────
+const ta    = document.getElementById('codeInput');
+const lnums = document.getElementById('lineNums');
+const lcnt  = document.getElementById('lineCount');
+
+function syncLines() {
+  const n = ta.value.split('\n').length;
+  lnums.innerHTML = Array.from({length: n}, (_, i) => i + 1).join('<br>');
+  lcnt.textContent = n + (n === 1 ? ' line' : ' lines');
+}
+ta.addEventListener('input', syncLines);
+ta.addEventListener('scroll', () => { lnums.scrollTop = ta.scrollTop; });
+syncLines();
+
+ta.addEventListener('keydown', e => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const s = ta.selectionStart;
+    ta.value = ta.value.slice(0, s) + '    ' + ta.value.slice(ta.selectionEnd);
+    ta.selectionStart = ta.selectionEnd = s + 4;
+    syncLines();
+  }
+});
+
+// ── Sample loader ─────────────────────────────────────────
+document.getElementById('sampleSel').addEventListener('change', e => {
+  if (SAMPLES[e.target.value]) { ta.value = SAMPLES[e.target.value]; syncLines(); }
+  e.target.value = '';
+});
+document.getElementById('clearBtn').addEventListener('click', () => {
+  ta.value = ''; syncLines(); showEmpty();
+});
+
+// ── Backend health check ──────────────────────────────────
+async function checkBackend() {
+  setStatus('yellow', 'Checking backend…', 'CHECKING');
+  try {
+    const r = await fetch(HEALTH_URL, { signal: AbortSignal.timeout(3000) });
+    if (r.ok) {
+      backendAvailable = true;
+      setStatus('green',
+        '<strong>Java Backend Online</strong> — using AST static analyzer on <code>localhost:8080</code>',
+        'STATIC MODE');
+      document.getElementById('modePill').textContent = '◆ Static + AI';
+    } else {
+      throw new Error('Non-OK response');
+    }
+  } catch (_) {
+    backendAvailable = false;
+    setStatus('red',
+      '<strong>Backend Offline</strong> — falling back to AI analysis. ' +
+      'Start the Spring Boot server to enable static mode.',
+      'AI FALLBACK');
+    document.getElementById('modePill').className = 'pill orange';
+    document.getElementById('modePill').textContent = '◆ AI Fallback';
+  }
+}
+
+function setStatus(color, html, mode) {
+  document.getElementById('statusDot').className = 'status-dot ' + color;
+  document.getElementById('statusText').innerHTML = html;
+  document.getElementById('statusMode').textContent = mode;
+}
+
+// ── UI helpers ────────────────────────────────────────────
+function showEmpty() {
+  document.getElementById('resultsArea').innerHTML = `
+    <div class="state-box">
+      <div class="state-icon">🔬</div>
+      <div class="state-title">Nothing analyzed yet</div>
+      <div class="state-sub">Load a sample or paste Java code, then click Analyze.</div>
+    </div>`;
+  document.getElementById('resBadge').style.display = 'none';
+}
+
+function showLoading(msg) {
+  document.getElementById('resultsArea').innerHTML = `
+    <div class="spinner-wrap">
+      <div class="spinner"></div>
+      <div class="spinner-label">${msg}</div>
+    </div>`;
+}
+
+function esc(t) {
+  return String(t || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderStep(txt) {
+  return esc(txt).replace(/`([^`]+)`/g, '<code>$1</code>');
+}
+
+function showResult(d, sourceLabel, isStatic) {
+  const badge = document.getElementById('resBadge');
+  badge.style.display = '';
+  badge.textContent = d.time_complexity || d.timeComplexity;
+  badge.className = 'pill ' + (isStatic ? 'green' : 'orange');
+
+  const tc = d.time_complexity  || d.timeComplexity;
+  const tl = d.time_label       || d.timeLabel       || '';
+  const sc = d.space_complexity || d.spaceComplexity;
+  const sl = d.space_label      || d.spaceLabel      || '';
+  const steps  = d.steps  || [];
+  const verdict = d.verdict || '';
+  const notes   = d.notes   || '';
+  const conf    = typeof d.confidence === 'number' ? d.confidence : null;
+
+  const stepsHTML = steps.map((s, i) => `
+    <div class="step">
+      <div class="step-n">${i + 1}</div>
+      <div class="step-txt">${renderStep(s)}</div>
+    </div>`).join('');
+
+  const confHTML = conf !== null ? `
+    <div class="conf-row">
+      <span class="conf-label">Confidence</span>
+      <div class="conf-bar-bg"><div class="conf-bar-fill" style="width:${Math.round(conf*100)}%"></div></div>
+      <span class="conf-val">${Math.round(conf*100)}%</span>
+    </div>` : '';
+
+  document.getElementById('resultsArea').innerHTML = `
+    <div class="r-body">
+      <div class="source-row">
+        <span class="source-badge ${isStatic ? 'source-static' : 'source-ai'}">${sourceLabel}</span>
+        <span class="source-label">${isStatic ? 'AST-based deterministic analysis' : 'LLM semantic analysis'}</span>
+      </div>
+
+      <div class="cx-row">
+        <div class="cx-card cx-time">
+          <div class="cx-lbl">Time Complexity</div>
+          <div class="cx-val">${esc(tc)}</div>
+          <div class="cx-desc">${esc(tl)}</div>
+        </div>
+        <div class="cx-card cx-space">
+          <div class="cx-lbl">Space Complexity</div>
+          <div class="cx-val">${esc(sc)}</div>
+          <div class="cx-desc">${esc(sl)}</div>
+        </div>
+      </div>
+
+      ${confHTML}
+
+      ${steps.length ? `
+      <div>
+        <div class="sec-hdr">Step-by-step reasoning</div>
+        <div class="steps">${stepsHTML}</div>
+      </div>` : ''}
+
+      ${verdict ? `
+      <div>
+        <div class="sec-hdr">Verdict</div>
+        <div class="verdict">${renderStep(verdict)}</div>
+      </div>` : ''}
+
+      ${notes ? `<div class="warn">⚠ ${esc(notes)}</div>` : ''}
+    </div>`;
+}
+
+function showError(msg) {
+  document.getElementById('resultsArea').innerHTML = `
+    <div class="state-box">
+      <div class="state-icon">⚠️</div>
+      <div class="state-title" style="color:var(--red)">Analysis Failed</div>
+      <div class="state-sub">${esc(msg)}</div>
+    </div>`;
+  document.getElementById('resBadge').style.display = 'none';
+}
+
+// ── Analysis ──────────────────────────────────────────────
+document.getElementById('analyzeBtn').addEventListener('click', async () => {
+  const code = ta.value.trim();
+  if (!code) { alert('Please enter some Java code first.'); return; }
+
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true;
+  document.getElementById('btnTxt').textContent = 'Analyzing…';
+  document.getElementById('btnIcon').textContent = '⏳';
+
+  // ── Try Java backend first ──
+  if (backendAvailable) {
+    showLoading('RUNNING AST STATIC ANALYSIS…');
+    try {
+      const resp = await fetch(BACKEND_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+        signal: AbortSignal.timeout(15000)
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.error) {
+          showError('Backend error: ' + data.error);
+        } else {
+          showResult(data, 'STATIC ANALYSIS', true);
+        }
+        resetBtn();
+        return;
+      }
+    } catch (e) {
+      // Backend failed mid-request, fall through to LLM
+      console.warn('Backend request failed:', e.message);
+    }
+  }
+
+  // ── LLM Fallback ──
+  showLoading('RUNNING AI ANALYSIS (BACKEND OFFLINE)…');
+  await runLLMAnalysis(code);
+  resetBtn();
+});
+
+function resetBtn() {
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = false;
+  document.getElementById('btnTxt').textContent = 'Analyze';
+  document.getElementById('btnIcon').textContent = '▶';
+}
+
+async function runLLMAnalysis(code) {
+  const SYSTEM = `You are an expert Java algorithm complexity analyzer.
+Return ONLY a valid JSON object. No markdown, no backticks, no preamble.
+
+JSON schema:
+{
+  "time_complexity": "e.g. O(n²)",
+  "time_label": "short description",
+  "space_complexity": "e.g. O(n)",
+  "space_label": "short description",
+  "steps": ["step 1", "step 2", ...],
+  "verdict": "one precise sentence summary",
+  "notes": "optional caveats or omit this key",
+  "confidence": 0.85
+}
+
+Rules:
+- steps: 3–7 entries, concrete, reference specific constructs with backtick syntax
+- Detect: for loops (linear/log), nested loops, recursion, data structures
+- Return ONLY the JSON.`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: SYSTEM,
+        messages: [{ role: 'user', content: 'Analyze this Java code:\n\n' + code }]
+      })
+    });
+
+    if (!resp.ok) {
+      let msg = `HTTP ${resp.status}`;
+      try { const e = await resp.json(); msg = e?.error?.message || msg; } catch(_) {}
+      throw new Error(msg);
+    }
+
+    const data = await resp.json();
+    const raw  = (data.content || []).map(b => b.text || '').join('');
+    const clean = raw.replace(/^```json\s*/,'').replace(/```\s*$/,'').trim();
+    const parsed = JSON.parse(clean);
+    showResult(parsed, 'AI ANALYSIS', false);
+
+  } catch (err) {
+    console.error('LLM error:', err);
+    showError(err.message || 'Analysis failed. Check your connection.');
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────
+checkBackend();
+// Re-check every 30s so status updates when user starts the server
+setInterval(checkBackend, 30000);
+</script>
+</body>
+</html>

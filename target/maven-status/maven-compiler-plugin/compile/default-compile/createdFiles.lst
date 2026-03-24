@@ -1,0 +1,6 @@
+com\muggle\analyzer\model\Complexity.class
+com\muggle\analyzer\controller\AnalyzerController.class
+com\muggle\analyzer\AnalyzerApplication.class
+com\muggle\analyzer\model\AnalysisRequest.class
+com\muggle\analyzer\engine\StaticAnalysisEngine.class
+com\muggle\analyzer\model\AnalysisResult.class

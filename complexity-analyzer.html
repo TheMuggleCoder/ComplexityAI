@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ComplexityAI — Java Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Kalam:wght@300;400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --board:        #243b2f;
+  --board-light:  #2d4a3b;
+  --board-dark:   #1a2d22;
+  --chalk:        #f0ece0;
+  --chalk-dim:    #b8b09a;
+  --chalk-faint:  #6a6458;
+  --chalk-yellow: #f5d76e;
+  --chalk-pink:   #ff8fab;
+  --chalk-blue:   #7ecfe0;
+  --chalk-orange: #ffb347;
+  --chalk-green:  #8fffb4;
+  --chalk-red:    #ff6b6b;
+  --wood:         #5c3d1e;
+  --wood-dark:    #3d2810;
+  --wood-light:   #7a5230;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; }
+
+body {
+  font-family: 'Kalam', cursive;
+  background: var(--wood-dark);
+  min-height: 100vh;
+  overflow-x: hidden;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Cellipse cx='10' cy='10' rx='3' ry='2' fill='%23f0ece0' opacity='0.6' transform='rotate(-30 10 10)'/%3E%3C/svg%3E") 4 16, default;
+}
+
+/* ── Wooden frame ── */
+.frame {
+  padding: 20px 20px 36px;
+  background:
+    linear-gradient(170deg, var(--wood-light) 0%, var(--wood) 25%, var(--wood-dark) 55%, var(--wood) 80%, var(--wood-light) 100%);
+  min-height: 100vh;
+  position: relative;
+}
+.frame::before {
+  content: '';
+  position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(
+    91deg,
+    transparent 0px, transparent 22px,
+    rgba(0,0,0,0.06) 22px, rgba(0,0,0,0.06) 23px,
+    transparent 23px, transparent 44px,
+    rgba(255,255,255,0.025) 44px, rgba(255,255,255,0.025) 45px
+  );
+}
+.chalk-tray {
+  position: absolute; bottom: 0; left: 20px; right: 20px; height: 16px;
+  background: linear-gradient(180deg, #3a2210 0%, #2a1a08 100%);
+  border-top: 2px solid rgba(255,255,255,0.07);
+  display: flex; align-items: center; padding: 0 20px; gap: 10px;
+}
+.tray-chalk { height: 7px; border-radius: 3px; opacity: 0.7; }
+
+/* ── Board surface ── */
+.board {
+  background: var(--board);
+  border-radius: 1px;
+  min-height: calc(100vh - 56px);
+  padding: 36px 44px 60px;
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    inset 0 0 100px rgba(0,0,0,0.4),
+    inset 4px 4px 20px rgba(0,0,0,0.3),
+    inset -4px -4px 20px rgba(0,0,0,0.3);
+}
+.board::before {
+  content: '';
+  position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 350px 140px at 15% 12%,  rgba(240,236,224,0.022) 0%, transparent 100%),
+    radial-gradient(ellipse 250px  90px at 80% 55%,  rgba(240,236,224,0.016) 0%, transparent 100%),
+    radial-gradient(ellipse 500px 120px at 50% 88%,  rgba(240,236,224,0.013) 0%, transparent 100%),
+    radial-gradient(ellipse 180px  70px at 92%  8%,  rgba(240,236,224,0.018) 0%, transparent 100%);
+}
+.board::after {
+  content: '';
+  position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.055'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+  mix-blend-mode: soft-light;
+}
+.board-lines {
+  position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background-image: repeating-linear-gradient(
+    180deg,
+    transparent 0px, transparent 47px,
+    rgba(240,236,224,0.04) 47px, rgba(240,236,224,0.04) 48px
+  );
+  background-position: 0 36px;
+}
+.board-inner {
+  position: relative; z-index: 1;
+  max-width: 1160px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 28px;
+}
+
+/* ── Header ── */
+.header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 20px; flex-wrap: wrap;
+  padding-bottom: 22px;
+  border-bottom: 2px dashed rgba(240,236,224,0.2);
+  position: relative;
+}
+.header::before, .header::after {
+  content: ''; position: absolute; bottom: -2px;
+  width: 24px; height: 24px;
+  border-color: rgba(240,236,224,0.25); border-style: solid;
+}
+.header::before { left: 0;  border-width: 0 0 2px 2px; }
+.header::after  { right: 0; border-width: 0 2px 2px 0; }
+
+.hdr-left { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.chalk-icon {
+  font-size: 36px;
+  animation: iconSway 5s ease-in-out infinite;
+  filter: drop-shadow(0 0 10px rgba(240,236,224,0.25));
+}
+@keyframes iconSway {
+  0%,100% { transform: rotate(-4deg) translateY(0); }
+  50%      { transform: rotate(4deg) translateY(-4px); }
+}
+.hdr-title {
+  font-family: 'Caveat', cursive;
+  font-size: 54px; font-weight: 700; line-height: 1;
+  color: var(--chalk); letter-spacing: 1px;
+  text-shadow: 1px 2px 0 rgba(0,0,0,0.5), 0 0 40px rgba(240,236,224,0.1);
+}
+.hdr-title .y { color: var(--chalk-yellow); }
+.hdr-sub {
+  font-family: 'Caveat', cursive;
+  font-size: 17px; color: var(--chalk-dim); margin-top: 3px; letter-spacing: 2px;
+}
+
+.chalk-tags { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.ctag {
+  font-family: 'Caveat', cursive; font-size: 15px;
+  padding: 3px 13px; border-radius: 2px;
+  border: 1.5px solid currentColor; letter-spacing: 0.5px;
+}
+.ctag:nth-child(1) { transform: rotate(-0.8deg); color: var(--chalk-yellow); border-color: rgba(245,215,110,0.45); background: rgba(245,215,110,0.06); }
+.ctag:nth-child(2) { transform: rotate(0.5deg);  color: var(--chalk-blue);   border-color: rgba(126,207,224,0.45); background: rgba(126,207,224,0.06); }
+.ctag:nth-child(3) { transform: rotate(-0.3deg); color: var(--chalk-green);  border-color: rgba(143,255,180,0.45); background: rgba(143,255,180,0.06); }
+
+/* ── Status notice ── */
+.notice {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 18px; border-radius: 2px;
+  border: 1.5px dashed rgba(240,236,224,0.18);
+  background: rgba(0,0,0,0.15);
+  font-family: 'Caveat', cursive; font-size: 17px;
+}
+.notice-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  border: 1.5px solid currentColor;
+}
+.notice-dot.yellow { color: var(--chalk-yellow); background: rgba(245,215,110,0.3); animation: blink 1.2s ease infinite; }
+.notice-dot.green  { color: var(--chalk-green);  background: rgba(143,255,180,0.3); }
+.notice-dot.red    { color: var(--chalk-red);    background: rgba(255,107,107,0.3); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.notice-text { color: var(--chalk-dim); flex: 1; }
+.notice-text strong { color: var(--chalk); }
+.notice-text code { font-family: 'Share Tech Mono', monospace; font-size: 13px; color: var(--chalk-yellow); }
+.notice-mode {
+  font-family: 'Share Tech Mono', monospace; font-size: 10px;
+  padding: 3px 10px; border: 1px solid rgba(240,236,224,0.15);
+  color: var(--chalk-faint); border-radius: 2px; letter-spacing: 1px;
+}
+
+/* ── Grid ── */
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
+@media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+
+/* ── Chalk panel ── */
+.chalk-panel {
+  border: 2px solid rgba(240,236,224,0.18);
+  border-radius: 2px;
+  background: rgba(0,0,0,0.1);
+  position: relative;
+}
+.chalk-panel::before, .chalk-panel::after {
+  content: ''; position: absolute;
+  width: 14px; height: 14px;
+  border-color: rgba(240,236,224,0.3); border-style: solid;
+}
+.chalk-panel::before { top: -2px; left: -2px;  border-width: 2px 0 0 2px; }
+.chalk-panel::after  { top: -2px; right: -2px; border-width: 2px 2px 0 0; }
+.cp-bot::before { bottom: -2px; top: auto; border-width: 0 0 2px 2px; }
+.cp-bot::after  { bottom: -2px; top: auto; border-width: 0 2px 2px 0; }
+
+.panel-title {
+  padding: 11px 16px;
+  border-bottom: 1px dashed rgba(240,236,224,0.15);
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(0,0,0,0.12);
+}
+.panel-label {
+  font-family: 'Caveat', cursive; font-size: 18px; color: var(--chalk-dim);
+  display: flex; align-items: center; gap: 10px; letter-spacing: 1px;
+}
+.bullet { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; box-shadow: 0 0 6px currentColor; }
+.b-y { color: var(--chalk-yellow); }
+.b-b { color: var(--chalk-blue); }
+.panel-meta { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--chalk-faint); letter-spacing: 0.5px; }
+
+/* ── Editor ── */
+.editor-wrap { display: flex; min-height: 300px; }
+.line-nums {
+  min-width: 46px; padding: 14px 10px 14px 6px; text-align: right;
+  user-select: none; font-family: 'Share Tech Mono', monospace;
+  font-size: 12px; line-height: 1.8; color: var(--chalk-faint);
+  border-right: 1px dashed rgba(240,236,224,0.12); overflow: hidden;
+}
+.code-ta {
+  flex: 1; min-height: 300px; padding: 14px;
+  background: transparent; color: var(--chalk);
+  border: none; outline: none; resize: none;
+  font-family: 'Share Tech Mono', monospace; font-size: 12.5px; line-height: 1.8;
+  tab-size: 4; white-space: pre; overflow: auto;
+  caret-color: var(--chalk-yellow);
+  text-shadow: 0 0 2px rgba(240,236,224,0.2);
+}
+.code-ta::placeholder { color: var(--chalk-faint); font-style: italic; text-shadow: none; }
+.code-ta::selection { background: rgba(245,215,110,0.2); }
+
+/* ── Actions ── */
+.actions {
+  padding: 12px 16px;
+  border-top: 1px dashed rgba(240,236,224,0.15);
+  background: rgba(0,0,0,0.1);
+  display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+}
+.sample-sel {
+  flex: 1; min-width: 160px;
+  background: rgba(0,0,0,0.25);
+  border: 1.5px dashed rgba(240,236,224,0.2);
+  color: var(--chalk); padding: 7px 32px 7px 12px; border-radius: 2px;
+  font-family: 'Caveat', cursive; font-size: 16px; outline: none; cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23b8b09a' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+}
+.sample-sel:focus { border-color: rgba(245,215,110,0.5); }
+option { background: #243b2f; }
+
+.btn {
+  font-family: 'Caveat', cursive; font-weight: 600; font-size: 17px;
+  padding: 6px 18px; border-radius: 2px; border: none; cursor: pointer;
+  display: flex; align-items: center; gap: 7px;
+  transition: all 0.15s ease; letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.btn-erase {
+  background: transparent; color: var(--chalk-dim);
+  border: 1.5px dashed rgba(240,236,224,0.22);
+}
+.btn-erase:hover { color: var(--chalk-red); border-color: rgba(255,107,107,0.4); background: rgba(255,107,107,0.06); }
+.btn-write {
+  background: rgba(245,215,110,0.1); color: var(--chalk-yellow);
+  border: 2px solid rgba(245,215,110,0.5);
+  box-shadow: 0 0 12px rgba(245,215,110,0.1), inset 0 0 12px rgba(245,215,110,0.05);
+}
+.btn-write:hover:not(:disabled) {
+  background: rgba(245,215,110,0.2);
+  box-shadow: 0 0 24px rgba(245,215,110,0.2), inset 0 0 16px rgba(245,215,110,0.08);
+  transform: translateY(-1px);
+}
+.btn-write:active:not(:disabled) { transform: translateY(0); }
+.btn-write:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* ── Results states ── */
+.results-panel { min-height: 430px; }
+.state-box {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: 380px; gap: 14px;
+  text-align: center; padding: 28px;
+}
+.state-icon { font-size: 50px; opacity: 0.25; }
+.state-title { font-family: 'Caveat', cursive; font-size: 24px; color: var(--chalk-dim); letter-spacing: 1px; }
+.state-sub { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--chalk-faint); max-width: 240px; line-height: 1.7; }
+
+.loading-box { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 380px; gap: 20px; }
+.chalk-spinner {
+  width: 46px; height: 46px; border-radius: 50%;
+  border: 2.5px dashed rgba(245,215,110,0.6);
+  animation: spin 1.2s linear infinite; position: relative;
+}
+.chalk-spinner::after {
+  content: ''; position: absolute; inset: 4px; border-radius: 50%;
+  border: 1.5px dashed rgba(126,207,224,0.4);
+  animation: spin 0.8s linear infinite reverse;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text {
+  font-family: 'Caveat', cursive; font-size: 20px; color: var(--chalk-dim); letter-spacing: 2px;
+  animation: fade 1.5s ease-in-out infinite;
+}
+@keyframes fade { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* ── Result content ── */
+.r-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+.source-strip {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 12px; border-radius: 2px;
+  border: 1px dashed rgba(240,236,224,0.12);
+  background: rgba(0,0,0,0.15);
+}
+.src-badge {
+  font-family: 'Share Tech Mono', monospace; font-size: 10px;
+  padding: 2px 8px; border-radius: 2px; letter-spacing: 1.5px; text-transform: uppercase;
+}
+.src-static { background: rgba(143,255,180,0.1); color: var(--chalk-green); border: 1px solid rgba(143,255,180,0.3); }
+.src-ai     { background: rgba(126,207,224,0.1); color: var(--chalk-blue);  border: 1px solid rgba(126,207,224,0.3); }
+.src-label  { font-family: 'Caveat', cursive; font-size: 15px; color: var(--chalk-faint); }
+
+.cx-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cx-card { border: 1.5px solid; border-radius: 2px; padding: 14px 16px; position: relative; }
+.cx-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+}
+.cx-time  { border-color: rgba(245,215,110,0.3); background: rgba(245,215,110,0.04); }
+.cx-time::before  { background: linear-gradient(90deg, transparent 0%, rgba(245,215,110,0.7) 30%, rgba(245,215,110,0.7) 70%, transparent 100%); }
+.cx-space { border-color: rgba(255,143,171,0.3); background: rgba(255,143,171,0.04); }
+.cx-space::before { background: linear-gradient(90deg, transparent 0%, rgba(255,143,171,0.7) 30%, rgba(255,143,171,0.7) 70%, transparent 100%); }
+
+.cx-lbl { font-family: 'Caveat', cursive; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+.cx-time .cx-lbl  { color: rgba(245,215,110,0.7); }
+.cx-space .cx-lbl { color: rgba(255,143,171,0.7); }
+.cx-val { font-family: 'Caveat', cursive; font-size: 30px; font-weight: 700; line-height: 1; margin-bottom: 5px; text-shadow: 0 0 20px currentColor; }
+.cx-time .cx-val  { color: var(--chalk-yellow); }
+.cx-space .cx-val { color: var(--chalk-pink); }
+.cx-desc { font-family: 'Kalam', cursive; font-size: 12px; color: var(--chalk-faint); line-height: 1.4; }
+
+.conf-wrap { display: flex; align-items: center; gap: 10px; }
+.conf-lbl { font-family: 'Caveat', cursive; font-size: 14px; color: var(--chalk-faint); white-space: nowrap; }
+.conf-track { flex: 1; height: 6px; border-radius: 3px; background: rgba(240,236,224,0.07); border: 1px solid rgba(240,236,224,0.1); overflow: hidden; }
+.conf-fill { height: 100%; background: linear-gradient(90deg, rgba(143,255,180,0.5), rgba(245,215,110,0.8)); border-radius: 3px; box-shadow: 0 0 8px rgba(245,215,110,0.3); transition: width 0.8s ease; }
+.conf-pct { font-family: 'Caveat', cursive; font-size: 16px; color: var(--chalk-yellow); white-space: nowrap; }
+
+.sec-title {
+  font-family: 'Caveat', cursive; font-size: 15px; letter-spacing: 2px;
+  color: var(--chalk-faint); text-transform: uppercase;
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.sec-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(240,236,224,0.15), transparent); }
+
+.steps { display: flex; flex-direction: column; gap: 7px; }
+.step {
+  display: flex; align-items: flex-start; gap: 11px;
+  padding: 8px 13px; border-radius: 2px;
+  border: 1px dashed rgba(240,236,224,0.1);
+  background: rgba(0,0,0,0.12);
+  animation: chalkIn 0.3s ease both;
+}
+.step:nth-child(1){animation-delay:.04s} .step:nth-child(2){animation-delay:.08s}
+.step:nth-child(3){animation-delay:.12s} .step:nth-child(4){animation-delay:.16s}
+.step:nth-child(5){animation-delay:.20s} .step:nth-child(6){animation-delay:.24s}
+.step:nth-child(7){animation-delay:.28s}
+@keyframes chalkIn { from{opacity:0;transform:translateX(-6px)} to{opacity:1;transform:translateX(0)} }
+.step-n {
+  min-width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; margin-top: 1px;
+  border: 1.5px solid rgba(245,215,110,0.5); color: var(--chalk-yellow);
+  font-family: 'Caveat', cursive; font-size: 14px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  text-shadow: 0 0 8px var(--chalk-yellow);
+}
+.step-txt { font-family: 'Kalam', cursive; font-size: 13px; line-height: 1.55; color: var(--chalk-dim); }
+.step-txt code {
+  font-family: 'Share Tech Mono', monospace; font-size: 11px;
+  background: rgba(245,215,110,0.1); padding: 1px 6px; border-radius: 2px;
+  color: var(--chalk-yellow); border: 1px solid rgba(245,215,110,0.2);
+}
+
+.verdict-box {
+  padding: 12px 16px; border-radius: 2px;
+  border: 1.5px dashed rgba(126,207,224,0.25); background: rgba(126,207,224,0.04);
+  font-family: 'Kalam', cursive; font-size: 13.5px; color: var(--chalk-dim); line-height: 1.6;
+}
+.verdict-box strong { color: var(--chalk-blue); }
+.warn-box {
+  padding: 10px 14px; border-radius: 2px;
+  border: 1.5px dashed rgba(255,179,71,0.3); background: rgba(255,179,71,0.05);
+  font-family: 'Share Tech Mono', monospace; font-size: 11px; color: rgba(255,179,71,0.8); line-height: 1.6;
+}
+
+/* ── Footer ── */
+.footer {
+  padding-top: 18px;
+  border-top: 2px dashed rgba(240,236,224,0.15);
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 12px; position: relative;
+}
+.footer::before, .footer::after {
+  content: ''; position: absolute; top: -2px;
+  width: 22px; height: 22px;
+  border-color: rgba(240,236,224,0.2); border-style: solid;
+}
+.footer::before { left:  0; border-width: 2px 0 0 2px; }
+.footer::after  { right: 0; border-width: 2px 2px 0 0; }
+.footer-brand { font-family: 'Caveat', cursive; font-size: 18px; color: var(--chalk-dim); letter-spacing: 0.5px; }
+.footer-brand span { color: var(--chalk-red); }
+.footer-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.fchip { font-family: 'Caveat', cursive; font-size: 13px; padding: 3px 10px; border-radius: 2px; border: 1px dashed rgba(240,236,224,0.15); color: var(--chalk-faint); }
+
+/* ── Chalk dust ── */
+.dust-p {
+  position: fixed; pointer-events: none; z-index: 999;
+  border-radius: 50%; background: var(--chalk);
+  animation: dustUp linear forwards;
+}
+@keyframes dustUp { 0%{opacity:0.7;transform:translateY(0) translateX(0) scale(1)} 100%{opacity:0;transform:translateY(-80px) translateX(var(--dx)) scale(0.2)} }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+::-webkit-scrollbar-thumb { background: rgba(240,236,224,0.15); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div class="frame">
+  <div class="chalk-tray">
+    <div class="tray-chalk" style="width:60px;background:#f0ece0;"></div>
+    <div class="tray-chalk" style="width:40px;background:#f5d76e;"></div>
+    <div class="tray-chalk" style="width:50px;background:#7ecfe0;"></div>
+    <div class="tray-chalk" style="width:35px;background:#ff8fab;"></div>
+    <div class="tray-chalk" style="width:55px;background:#8fffb4;"></div>
+    <div class="tray-chalk" style="width:30px;background:#ffb347;"></div>
+  </div>
+
+  <div class="board">
+    <div class="board-lines"></div>
+    <div class="board-inner">
+
+      <!-- Header -->
+      <header class="header">
+        <div class="hdr-left">
+          <div class="chalk-icon">🧑‍🏫</div>
+          <div>
+            <div class="hdr-title">Complexity<span class="y">AI</span></div>
+            <div class="hdr-sub">Java Algorithm Analysis · Blackboard Edition</div>
+          </div>
+        </div>
+        <div>
+          <div class="chalk-tags">
+            <span class="ctag">⏱ Time</span>
+            <span class="ctag">📦 Space</span>
+            <span class="ctag" id="modePill">✦ Static + AI</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Status -->
+      <div class="notice">
+        <div class="notice-dot yellow" id="sDot"></div>
+        <div class="notice-text" id="sTxt"><strong>Connecting…</strong> — checking Java analyzer at <code>localhost:8080</code></div>
+        <span class="notice-mode" id="sMode">INIT</span>
+      </div>
+
+      <!-- Grid -->
+      <div class="grid">
+
+        <!-- Editor -->
+        <div>
+          <div class="chalk-panel cp-bot">
+            <div class="panel-title">
+              <div class="panel-label"><div class="bullet b-y"></div>Java Source</div>
+              <span class="panel-meta" id="lineCount">1 line</span>
+            </div>
+            <div class="editor-wrap">
+              <div class="line-nums" id="lineNums">1</div>
+              <textarea class="code-ta" id="codeInput" spellcheck="false" placeholder="// Write your Java code here...
+// Example:
+for (int i = 0; i < n; i++) {
+    for (int j = 0; j < n; j++) {
+        System.out.println(i + j);
+    }
+}"></textarea>
+            </div>
+            <div class="actions">
+              <select class="sample-sel" id="sampleSel">
+                <option value="">── Load example ──</option>
+                <option value="nested">Nested loops — O(n²)</option>
+                <option value="bsearch">Binary search — O(log n)</option>
+                <option value="mergesort">Merge sort — O(n log n)</option>
+                <option value="fib">Fibonacci recursion — O(2ⁿ)</option>
+                <option value="linear">Linear scan — O(n)</option>
+                <option value="const">Constant — O(1)</option>
+                <option value="cubic">Triple nested — O(n³)</option>
+              </select>
+              <button class="btn btn-erase" id="clearBtn">✕ Erase</button>
+              <button class="btn btn-write" id="analyzeBtn"><span id="bIcon">✍</span><span id="bTxt">Analyze</span></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div>
+          <div class="chalk-panel cp-bot results-panel">
+            <div class="panel-title">
+              <div class="panel-label"><div class="bullet b-b"></div>Analysis</div>
+              <span id="resBadge" class="panel-meta" style="display:none"></span>
+            </div>
+            <div id="resultsArea">
+              <div class="state-box">
+                <div class="state-icon">🔬</div>
+                <div class="state-title">Board is empty</div>
+                <div class="state-sub">Load a sample or write Java code, then hit Analyze.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <footer class="footer">
+        <div class="footer-brand">Created by <strong style="color:var(--chalk)">themugglecoder</strong> with <span>♥</span></div>
+        <div class="footer-chips">
+          <span class="fchip">JavaParser AST</span>
+          <span class="fchip">Loop Detection</span>
+          <span class="fchip">Recursion Analysis</span>
+          <span class="fchip">AI Fallback</span>
+        </div>
+      </footer>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const BACKEND = 'http://localhost:8080/api/analyze';
+const HEALTH  = 'http://localhost:8080/api/health';
+let backendOK = false;
+
+/* ── Chalk dust ── */
+function dust(x, y, n=8) {
+  for (let i=0;i<n;i++) {
+    const el = document.createElement('div');
+    el.className = 'dust-p';
+    const s = 2+Math.random()*3;
+    el.style.cssText=`left:${x+(Math.random()-.5)*24}px;top:${y+(Math.random()-.5)*12}px;width:${s}px;height:${s}px;--dx:${(Math.random()-.5)*60}px;animation-duration:${.6+Math.random()*.9}s;animation-delay:${Math.random()*.1}s`;
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(),1600);
+  }
+}
+document.getElementById('analyzeBtn').addEventListener('mouseenter',e=>{const r=e.target.getBoundingClientRect();dust(r.left+r.width/2,r.bottom,5);});
+
+/* ── Samples ── */
+const S={
+  nested:`// Nested loops — O(n²)
+void printPairs(int n) {
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            System.out.println(i + ", " + j);
+        }
+    }
+}`,
+  bsearch:`// Binary search — O(log n)
+int binarySearch(int[] arr, int target) {
+    int left = 0, right = arr.length - 1;
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+        if (arr[mid] == target) return mid;
+        else if (arr[mid] < target) left = mid + 1;
+        else right = mid - 1;
+    }
+    return -1;
+}`,
+  mergesort:`// Merge sort — O(n log n)
+void mergeSort(int[] arr, int left, int right) {
+    if (left < right) {
+        int mid = (left + right) / 2;
+        mergeSort(arr, left, mid);
+        mergeSort(arr, mid + 1, right);
+        merge(arr, left, mid, right);
+    }
+}
+void merge(int[] arr, int l, int m, int r) {
+    int n1=m-l+1,n2=r-m;
+    int[] L=new int[n1],R=new int[n2];
+    for(int i=0;i<n1;i++) L[i]=arr[l+i];
+    for(int j=0;j<n2;j++) R[j]=arr[m+1+j];
+    int i=0,j=0,k=l;
+    while(i<n1&&j<n2) arr[k++]=(L[i]<=R[j])?L[i++]:R[j++];
+    while(i<n1) arr[k++]=L[i++];
+    while(j<n2) arr[k++]=R[j++];
+}`,
+  fib:`// Naive Fibonacci — O(2ⁿ)
+int fibonacci(int n) {
+    if (n <= 1) return n;
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}`,
+  linear:`// Linear scan — O(n)
+int findMax(int[] arr) {
+    int max = arr[0];
+    for (int i = 1; i < arr.length; i++) {
+        if (arr[i] > max) max = arr[i];
+    }
+    return max;
+}`,
+  const:`// Constant time — O(1)
+int getFirst(int[] arr) { return arr[0]; }
+boolean isEmpty(int[] arr) { return arr.length == 0; }`,
+  cubic:`// Triple nested — O(n³)
+int tripleSum(int n) {
+    int count = 0;
+    for (int i=0;i<n;i++)
+        for (int j=0;j<n;j++)
+            for (int k=0;k<n;k++)
+                count++;
+    return count;
+}`
+};
+
+/* ── Line numbers ── */
+const ta=document.getElementById('codeInput');
+const ln=document.getElementById('lineNums');
+const lc=document.getElementById('lineCount');
+function syncLines(){const n=ta.value.split('\n').length;ln.innerHTML=Array.from({length:n},(_,i)=>i+1).join('<br>');lc.textContent=n+(n===1?' line':' lines');}
+ta.addEventListener('input',syncLines);
+ta.addEventListener('scroll',()=>{ln.scrollTop=ta.scrollTop;});
+syncLines();
+ta.addEventListener('keydown',e=>{if(e.key==='Tab'){e.preventDefault();const s=ta.selectionStart;ta.value=ta.value.slice(0,s)+'    '+ta.value.slice(ta.selectionEnd);ta.selectionStart=ta.selectionEnd=s+4;syncLines();}});
+
+document.getElementById('sampleSel').addEventListener('change',e=>{if(S[e.target.value]){ta.value=S[e.target.value];syncLines();}e.target.value='';});
+document.getElementById('clearBtn').addEventListener('click',()=>{const r=document.getElementById('clearBtn').getBoundingClientRect();dust(r.left+r.width/2,r.top,12);ta.value='';syncLines();showEmpty();});
+
+/* ── Status ── */
+function setStatus(dotCls,html,mode){
+  document.getElementById('sDot').className='notice-dot '+dotCls;
+  document.getElementById('sTxt').innerHTML=html;
+  document.getElementById('sMode').textContent=mode;
+}
+async function checkBackend(){
+  setStatus('yellow','<strong>Checking…</strong> — connecting to Java analyzer at <code>localhost:8080</code>','CHECKING');
+  try{
+    const r=await fetch(HEALTH,{signal:AbortSignal.timeout(3000)});
+    if(r.ok){
+      backendOK=true;
+      setStatus('green','<strong>Java Backend Online</strong> — AST static analyzer ready on <code>localhost:8080</code>','STATIC MODE');
+      const p=document.getElementById('modePill');
+      p.style.cssText='color:var(--chalk-green);border-color:rgba(143,255,180,0.45);background:rgba(143,255,180,0.06)';
+      p.textContent='✦ Static Mode';
+    } else throw 0;
+  } catch{
+    backendOK=false;
+    setStatus('red','<strong>Backend Offline</strong> — falling back to AI. Run <code>mvn spring-boot:run</code> to enable static mode.','AI FALLBACK');
+    const p=document.getElementById('modePill');
+    p.style.cssText='color:var(--chalk-blue);border-color:rgba(126,207,224,0.45);background:rgba(126,207,224,0.06)';
+    p.textContent='✦ AI Mode';
+  }
+}
+
+/* ── UI helpers ── */
+function showEmpty(){
+  document.getElementById('resBadge').style.display='none';
+  document.getElementById('resultsArea').innerHTML=`<div class="state-box"><div class="state-icon">🔬</div><div class="state-title">Board is empty</div><div class="state-sub">Load a sample or write Java code, then hit Analyze.</div></div>`;
+}
+function showLoading(msg){
+  document.getElementById('resultsArea').innerHTML=`<div class="loading-box"><div class="chalk-spinner"></div><div class="loading-text">${msg}</div></div>`;
+}
+function esc(t){return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function toCode(t){return esc(t).replace(/`([^`]+)`/g,'<code>$1</code>');}
+
+function showResult(d,srcLabel,isStatic){
+  const badge=document.getElementById('resBadge');
+  badge.style.display='';
+  const tc=d.time_complexity||d.timeComplexity||'?';
+  const tl=d.time_label||d.timeLabel||'';
+  const sc=d.space_complexity||d.spaceComplexity||'?';
+  const sl=d.space_label||d.spaceLabel||'';
+  const steps=d.steps||[];
+  const verdict=d.verdict||'';
+  const notes=d.notes||'';
+  const conf=typeof d.confidence==='number'?d.confidence:null;
+  badge.textContent=tc;
+
+  const stHTML=steps.map((s,i)=>`<div class="step"><div class="step-n">${i+1}</div><div class="step-txt">${toCode(s)}</div></div>`).join('');
+  const cfHTML=conf!==null?`<div class="conf-wrap"><span class="conf-lbl">Confidence</span><div class="conf-track"><div class="conf-fill" style="width:${Math.round(conf*100)}%"></div></div><span class="conf-pct">${Math.round(conf*100)}%</span></div>`:'';
+
+  document.getElementById('resultsArea').innerHTML=`
+    <div class="r-body">
+      <div class="source-strip">
+        <span class="src-badge ${isStatic?'src-static':'src-ai'}">${srcLabel}</span>
+        <span class="src-label">${isStatic?'AST deterministic analysis':'LLM semantic analysis'}</span>
+      </div>
+      <div class="cx-row">
+        <div class="cx-card cx-time"><div class="cx-lbl">Time Complexity</div><div class="cx-val">${esc(tc)}</div><div class="cx-desc">${esc(tl)}</div></div>
+        <div class="cx-card cx-space"><div class="cx-lbl">Space Complexity</div><div class="cx-val">${esc(sc)}</div><div class="cx-desc">${esc(sl)}</div></div>
+      </div>
+      ${cfHTML}
+      ${steps.length?`<div><div class="sec-title">Step-by-step reasoning</div><div class="steps">${stHTML}</div></div>`:''}
+      ${verdict?`<div><div class="sec-title">Summary</div><div class="verdict-box">${toCode(verdict)}</div></div>`:''}
+      ${notes?`<div class="warn-box">⚠ ${esc(notes)}</div>`:''}
+    </div>`;
+
+  const r=document.getElementById('resultsArea').getBoundingClientRect();
+  dust(r.left+r.width/2,r.top+80,16);
+}
+
+function showError(msg){
+  document.getElementById('resBadge').style.display='none';
+  document.getElementById('resultsArea').innerHTML=`<div class="state-box"><div class="state-icon">⚠️</div><div class="state-title" style="color:var(--chalk-red)">Analysis Failed</div><div class="state-sub">${esc(msg)}</div></div>`;
+}
+
+/* ── Analyze ── */
+document.getElementById('analyzeBtn').addEventListener('click',async()=>{
+  const code=ta.value.trim();
+  if(!code){alert('Write some Java code first!');return;}
+  const btn=document.getElementById('analyzeBtn');
+  btn.disabled=true;
+  document.getElementById('bTxt').textContent='Writing…';
+  document.getElementById('bIcon').textContent='⏳';
+  const br=btn.getBoundingClientRect();
+  dust(br.left+br.width/2,br.top,14);
+
+  if(backendOK){
+    showLoading('RUNNING STATIC ANALYSIS…');
+    try{
+      const resp=await fetch(BACKEND,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code}),signal:AbortSignal.timeout(15000)});
+      if(resp.ok){const data=await resp.json();data.error?showError('Backend: '+data.error):showResult(data,'STATIC ANALYSIS',true);resetBtn();return;}
+    }catch(e){console.warn('Backend fail:',e.message);}
+  }
+
+  showLoading('AI IS THINKING…');
+  await runLLM(code);
+  resetBtn();
+});
+
+function resetBtn(){
+  const btn=document.getElementById('analyzeBtn');
+  btn.disabled=false;
+  document.getElementById('bTxt').textContent='Analyze';
+  document.getElementById('bIcon').textContent='✍';
+}
+
+async function runLLM(code){
+  const SYS=`You are an expert Java complexity analyzer. Return ONLY valid JSON — no markdown, no backticks, no preamble.
+Schema: {"time_complexity":"e.g. O(n²)","time_label":"short description","space_complexity":"e.g. O(n)","space_label":"short description","steps":["step with backtick code refs"],"verdict":"one precise sentence","notes":"optional caveats or omit","confidence":0.87}
+Rules: 3-7 steps, use backtick syntax for code snippets, detect loops/recursion/data structures accurately.`;
+  try{
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:SYS,messages:[{role:'user',content:'Analyze this Java code:\n\n'+code}]})});
+    if(!resp.ok){let m=`HTTP ${resp.status}`;try{const e=await resp.json();m=e?.error?.message||m;}catch{}throw new Error(m);}
+    const data=await resp.json();
+    const raw=(data.content||[]).map(b=>b.text||'').join('');
+    const clean=raw.replace(/^```json\s*/,'').replace(/```\s*$/,'').trim();
+    showResult(JSON.parse(clean),'AI ANALYSIS',false);
+  }catch(err){console.error(err);showError(err.message||'Unknown error. Check console.');}
+}
+
+checkBackend();
+setInterval(checkBackend,30000);
+</script>
+</body>
+</html>
