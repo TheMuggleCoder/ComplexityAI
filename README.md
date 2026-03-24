@@ -138,7 +138,7 @@ This system is designed as a foundation for research. Extend it with:
 
 ---
 
-## Limitations (Be Honest in Research)
+## Limitations
 
 - Loop bounds assumed to be n (unknown bounds flagged)
 - Recursion resolution is heuristic (Master Theorem not fully implemented)
@@ -146,4 +146,3 @@ This system is designed as a foundation for research. Extend it with:
 - Input-dependent behavior not modeled
 - Amortized complexity not analyzed
 
-These are your research contribution areas.
